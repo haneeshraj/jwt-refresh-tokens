@@ -20,6 +20,62 @@ const users = [
   },
 ];
 
+let refreshTokens = [];
+
+const generateAccessToken = (user) => {
+  // Generate and access token
+  const accessToken = jwt.sign(
+    { id: user.id, isAdmin: user.isAdmin },
+    "mysecretkey",
+    { expiresIn: "15m" }
+  );
+
+  return accessToken;
+};
+
+const generateRefreshToken = (user) => {
+  // Generate and access token
+  const accessToken = jwt.sign(
+    { id: user.id, isAdmin: user.isAdmin },
+    "myrefreshsecretkey",
+    { expiresIn: "15m" }
+  );
+
+  return accessToken;
+};
+
+app.get("/", (req, res) => {
+  res.json(refreshTokens);
+});
+
+app.post("/api/refresh", (req, res) => {
+  // take the refresh token from the user
+  const refreshToken = req.body.token;
+
+  // send error if no token or token not valid
+  if (!refreshToken)
+    return res.json({ message: "You are not authenticated/logged in!" });
+
+  if (!refreshTokens.includes(refreshToken)) {
+    res.json({ message: "refresh token is not valid" });
+  }
+
+  jwt.verify(refreshToken, "myrefreshsecretkey", (err, user) => {
+    err && console.log(err);
+
+    refreshTokens = refreshTokens.filter((token) => token !== refreshToken);
+
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+
+    refreshTokens.push(newRefreshToken);
+
+    res.json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
+  });
+
+  // if everything is ok, create new access token, refresh token  and send to user
+});
+
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
 
@@ -33,16 +89,15 @@ app.post("/api/login", (req, res) => {
     });
   }
 
-  // Generate and access token
-  const accessToken = jwt.sign(
-    { id: user.id, isAdmin: user.isAdmin },
-    "mysecretkey",
-    { expiresIn: "20s" }
-  );
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  refreshTokens.push(refreshToken);
   res.json({
     username: user.username,
     isAdmin: user.isAdmin,
     accessToken,
+    refreshToken,
   });
 });
 
